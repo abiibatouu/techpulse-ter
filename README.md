@@ -33,7 +33,7 @@ psql -U postgres -d techpulse -f ingestion/schema.sql
 ### Ingestion
 
 ```bash
-python ingestion/france_travail.py
+python ingestion/run_france_travail.py
 ```
 
 Vérifier :
