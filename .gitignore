@@ -1,4 +1,23 @@
+# Secrets
 .env
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Lac de donnees - donnees brutes, jamais versionnees
+data/
+
+# Artifacts LaTeX (regenerables)
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
