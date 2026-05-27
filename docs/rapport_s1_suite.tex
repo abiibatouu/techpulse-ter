@@ -1,0 +1,485 @@
+\documentclass[12pt, a4paper]{article}
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+% Mise en page
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+% Couleurs pour le code
+\definecolor{codebg}{RGB}{245, 245, 245}
+\definecolor{codeblue}{RGB}{0, 102, 204}
+\definecolor{codegreen}{RGB}{0, 128, 0}
+\definecolor{codegray}{RGB}{128, 128, 128}
+\definecolor{codeorange}{RGB}{204, 85, 0}
+% Style pour les blocs de code
+\lstdefinestyle{python}{
+    backgroundcolor=\color{codebg},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codeorange},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray},
+    language=Python,
+    showstringspaces=false,
+    tabsize=4
+}
+\lstdefinestyle{sql}{
+    backgroundcolor=\color{codebg},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue}\bfseries,
+    stringstyle=\color{codeorange},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray},
+    language=SQL,
+    showstringspaces=false,
+    morekeywords={VARCHAR, TEXT, TIMESTAMP, JSONB, DEFAULT, NOW, CONFLICT}
+}
+\lstdefinestyle{bash}{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray},
+    showstringspaces=false
+}
+\lstdefinestyle{yaml}{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray},
+    showstringspaces=false
+}
+% En-tête et pied de page
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{TechPulse — TER Master Informatique AMU}
+\lhead{Semaine 1 (suite)}
+\rfoot{\thepage}
+% Titre
+\title{
+    \vspace{-1cm}
+    \textbf{\Large TechPulse — Travaux complémentaires S1} \\
+    \vspace{0.4cm}
+    \large Schéma PostgreSQL, Infrastructure et Tests \\
+    \vspace{0.3cm}
+}
+\author{}
+\date{}
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+% ============================================================
+\section{Design du schéma PostgreSQL (Phase S1)}
+% ============================================================
+\subsection{Analyse des besoins}
+Après la réussite du pipeline d'ingestion (semaine 1), l'étape critique suivante est de concevoir un schéma PostgreSQL \textbf{minimal mais extensible}. Le design doit supporter :
+\begin{itemize}
+    \item \textbf{S1-S2} : Ingestion multi-sources (France Travail + WTTJ)
+    \item \textbf{S3} : Extraction LLM structurée
+    \item \textbf{S4-S6} : Analyses temporelles et géographiques
+\end{itemize}
+Une première approche avait surdimensionné le schéma avec des tables de taxonomie, vues SQL et triggers dès S1. Cela a été **rejeté** en faveur d'une approche \textbf{minimaliste et pragmatique} : commencer par les deux tables essentielles uniquement.
+\subsection{Tables implémentées}
+\subsubsection{Table \texttt{sources}}
+Traçabilité obligatoire : identifier d'où vient chaque offre.
+\begin{lstlisting}[style=sql]
+CREATE TABLE sources (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(50) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+INSERT INTO sources (nom) VALUES ('france_travail'), ('wttj')
+ON CONFLICT (nom) DO NOTHING;
+\end{lstlisting}
+\subsubsection{Table \texttt{offres}}
+\begin{lstlisting}[style=sql]
+CREATE TABLE offres (
+    id VARCHAR(50) PRIMARY KEY,
+    source_id INTEGER NOT NULL REFERENCES sources(id),
+    intitule VARCHAR(255) NOT NULL,
+    description TEXT,
+    date_creation TIMESTAMP NOT NULL,
+    lieu_libelle VARCHAR(255),
+    code_postal VARCHAR(10),
+    entreprise_nom VARCHAR(255),
+    type_contrat VARCHAR(50),
+    salaire_libelle VARCHAR(100),
+    raw_json JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX idx_offres_source ON offres(source_id);
+CREATE INDEX idx_offres_date ON offres(date_creation DESC);
+\end{lstlisting}
+\subsection{Justification des choix}
+\begin{center}
+\begin{tabular}{>{\ttfamily}p{3cm} p{2.5cm} p{6cm}}
+\toprule
+\textbf{Décision} & \textbf{Approche} & \textbf{Raison} \\
+\midrule
+Taxonomie & À implémenter S4 & Pas besoin en S1 \\
+Vues SQL & À implémenter S5 & Les analyses viennent après \\
+Triggers & À ajouter plus tard & YAGNI (You Aren't Gonna Need It) \\
+raw\_json & Conservé & Backup des données brutes \\
+source\_id & Clé étrangère & Préparer S2 (WTTJ) \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.3cm}
+La philosophie adoptée : \textbf{« Faire le strict minimum pour S1, ajouter au fur et à mesure »}. Cela respecte les principes agiles et permet d'adapter rapidement si les besoins changent.
+% ============================================================
+\section{Gestion de l'environnement}
+% ============================================================
+\subsection{Fichier \texttt{.env.example}}
+Plutôt que de hardcoder les credentials, un template \texttt{.env.example} a été créé pour que chaque développeur puisse :
+\begin{lstlisting}[style=bash]
+cp .env.example .env
+# Puis remplir ses propres valeurs
+\end{lstlisting}
+Contenu :
+\begin{lstlisting}[style=bash]
+# France Travail API
+FRANCE_TRAVAIL_CLIENT_ID=your_client_id_here
+FRANCE_TRAVAIL_CLIENT_SECRET=your_client_secret_here
+# PostgreSQL
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=techpulse
+DB_USER=postgres
+DB_PASSWORD=your_password_here
+\end{lstlisting}
+% ============================================================
+\section{Infrastructure Docker}
+% ============================================================
+\subsection{Fichier \texttt{docker-compose.yml}}
+Pour éviter les dépendances système (PostgreSQL installé localement), un \texttt{docker-compose.yml} a été créé :
+\begin{lstlisting}[style=yaml]
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: techpulse_db
+    environment:
+      POSTGRES_DB: techpulse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: techpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./ingestion/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - postgres_data:/var/lib/postgresql/data
+volumes:
+  postgres_data:
+\end{lstlisting}
+Avantages :
+\begin{itemize}
+    \item Une commande pour lancer l'env complet : \texttt{docker-compose up -d}
+    \item Le schéma est appliqué automatiquement au démarrage
+    \item Isolé du système de développement (pas de polluer le portable)
+    \item Reproductible sur toutes les machines (Windows, Mac, Linux)
+\end{itemize}
+% ============================================================
+\section{Validation du schéma}
+% ============================================================
+\subsection{Stratégie de test}
+Plutôt que de dépendre de Docker ou d'une install locale de PostgreSQL (qui n'était pas disponible), une suite de test en SQLite a été créée pour valider la logique du schéma :
+\begin{lstlisting}[style=python]
+import sqlite3
+import json
+from datetime import datetime
+db = sqlite3.connect(':memory:')
+cursor = db.cursor()
+# Créer les tables (version SQLite du schéma)
+cursor.execute('''
+    CREATE TABLE sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT UNIQUE NOT NULL
+    )
+''')
+cursor.execute('''
+    CREATE TABLE offres (
+        id TEXT PRIMARY KEY,
+        source_id INTEGER NOT NULL,
+        intitule TEXT NOT NULL,
+        ...
+    )
+''')
+# Insérer des données de test
+cursor.execute("INSERT INTO sources (nom) VALUES ('france_travail')")
+# Vérifier
+cursor.execute("SELECT COUNT(*) FROM offres")
+count = cursor.fetchone()[0]
+print(f"Total offres: {count}")
+\end{lstlisting}
+\subsection{Résultats du test}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Élément} & \textbf{Statut} \\
+\midrule
+Création des tables & ✓ OK \\
+Insertion de données & ✓ OK \\
+Récupération de données & ✓ OK \\
+Gestion des doublons & ✓ OK \\
+\bottomrule
+\end{tabular}
+\end{center}
+Le schéma a été validé avec succès. Aucune problématique structurelle.
+% ============================================================
+\section{Documentation}
+% ============================================================
+\subsection{Fichier \texttt{README.md}}
+Un guide d'utilisation a été créé pour les futurs développeurs :
+\begin{itemize}
+    \item Prérequis système
+    \item Instructions d'installation
+    \item Comment lancer PostgreSQL (Docker ou local)
+    \item Comment lancer l'ingestion
+    \item Structure du projet
+    \item Timeline des phases
+\end{itemize}
+\subsection{Pipeline CI/CD}
+Un fichier \texttt{.gitlab-ci.yml} a été ajouté pour valider automatiquement le code à chaque push :
+\begin{lstlisting}[style=yaml]
+stages:
+  - lint
+  - test
+lint:python:
+  stage: lint
+  image: python:3.9
+  script:
+    - pip install flake8
+    - flake8 ingestion/ --max-line-length=120 || true
+  allow_failure: true
+test:schema:
+  stage: test
+  image: python:3.9
+  script:
+    - python test_schema.py
+  allow_failure: false
+\end{lstlisting}
+Cela permet de détecter les erreurs de code rapidement et d'assurer une qualité minimale.
+% ============================================================
+\section{Dépôt GitLab}
+% ============================================================
+L'ensemble des fichiers a été versionnés et poussé sur le dépôt GitLab AMU :
+\texttt{git@etulab.univ-amu.fr:b24028179/techpulse-ter.git}
+Fichiers ajoutés/modifiés :
+\begin{itemize}
+    \item \texttt{ingestion/schema.sql} — Schéma PostgreSQL S1
+    \item \texttt{.env.example} — Template d'environnement
+    \item \texttt{docker-compose.yml} — Infrastructure
+    \item \texttt{.gitlab-ci.yml} — CI/CD
+    \item \texttt{README.md} — Documentation
+    \item \texttt{test\_schema.py} — Tests de validation
+\end{itemize}
+% ============================================================
+\section{État de fin de semaine}
+% ============================================================
+\subsection{Livrables S1}
+\begin{center}
+\begin{tabular}{p{5cm} p{2cm} p{4cm}}
+\toprule
+\textbf{Élément} & \textbf{Statut} & \textbf{Notes} \\
+\midrule
+API France Travail & ✓ & Déjà fonctionnel (semaine 1) \\
+Schéma PostgreSQL & ✓ & Minimal et validé \\
+Infrastructure Docker & ✓ & Prêt pour déploiement \\
+Documentation & ✓ & README complet \\
+Tests & ✓ & Schéma validé via SQLite \\
+CI/CD & ✓ & GitLab Pipeline configuré \\
+Versionning & ✓ & Tous les fichiers sur GitLab \\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection{Prochaines étapes (S2)}
+\begin{itemize}
+    \item Intégrer le schéma PostgreSQL dans le script \texttt{france\_travail.py}
+    \item Tester le pipeline complet (API → ingestion → BD)
+    \item Commencer le scraping WTTJ avec Playwright
+    \item Élargir à d'autres mots-clés (data scientist, ML engineer, etc.)
+    \item Mettre en place une orchestration (cron ou Prefect)
+\end{itemize}
+
+% ============================================================
+\section{Travaux S2 — Mise en œuvre du lac de données}
+% ============================================================
+
+Les « Prochaines étapes (S2) » listées ci-dessus représentaient la feuille de route à la fin de S1. La semaine 2 a effectivement vu cette feuille de route mise en œuvre, en concentrant l'effort sur deux chantiers prioritaires : la transformation du pipeline en une architecture robuste à deux étages (avec lac de données intermédiaire) et la collecte effective des offres tech via les codes métier ROME. Le scraping WTTJ et l'orchestration sont reportés en S7, conformément au planning indicatif du sujet.
+
+\subsection{Motivation : pourquoi un lac de données}
+
+La version S1 du pipeline tenait debout, mais souffrait d'un défaut opérationnel : la donnée récupérée auprès de l'API était conservée en mémoire, puis insérée en base. Un incident vécu pendant le développement (bug sur le champ \texttt{source\_id}) a obligé à rappeler l'API pour retrouver les offres perdues, consommant inutilement du quota.
+
+Au-delà de cet incident, deux contraintes structurantes émergent d'une analyse fine de l'API « Offres d'emploi v2 » de France Travail :
+
+\begin{itemize}
+    \item \textbf{Plafond dur de 1150 résultats par recherche.} La pagination accepte des plages de 150 résultats, débutant à un maximum de 1000 (donc 1150 au total). Au-delà, il faut sous-découper la recherche par fenêtres de dates ou par département.
+    \item \textbf{Pas de mémoire longue.} L'API n'expose que les offres actives et récentes. Les offres pourvues ou expirées disparaissent définitivement. Reconstituer l'historique \emph{a posteriori} est impossible : seule une collecte régulière, accumulée localement, le permet.
+\end{itemize}
+
+Ces deux constats ont motivé l'introduction d'un lac de données. Le lac joue deux rôles complémentaires : il \emph{archive} la donnée brute renvoyée par l'API (assurant la mémoire pluriannuelle que l'API ne fournit pas) et il \emph{découple} l'extraction du chargement (en garantissant que la donnée est sauvegardée sur disque \emph{avant} tout traitement). Une étape « Extraire $\rightarrow$ Lac » précède désormais une étape « Lac $\rightarrow$ Entrepôt », indépendantes l'une de l'autre.
+
+\subsection{Choix d'architecture : fichiers JSON sur disque}
+
+Deux options s'opposaient pour matérialiser le lac : des \textbf{fichiers JSON sur disque} (pattern canonique d'une zone « bronze » en data engineering moderne) ou une \textbf{table PostgreSQL JSONB} (plus simple à mettre en place mais qui ne correspond pas à ce qu'on appelle un lac dans la littérature professionnelle). Après comparaison sur huit critères (découplage, immuabilité, re-jeu après incident, requêtage exploratoire, coût opérationnel, migration vers stockage objet, etc.), l'option fichiers a été retenue. Les arguments décisifs : (i) le pattern correspond à ce qui se fait en production (zone bronze de l'architecture médaillon), (ii) le découplage entre extraction et chargement est réel et non simulé, (iii) la migration future vers un stockage objet (MinIO, S3) restera triviale puisque l'arborescence sera déjà compatible.
+
+\subsection{Préparation à la migration vers S3 / MinIO}
+
+Pour anticiper le passage en stockage objet prévu en S7 (semaine DevOps), le code introduit une \textbf{abstraction de stockage}. Un \texttt{Protocol} Python définit l'interface attendue ; une première implémentation \texttt{FilesystemStorage} écrit sur le disque local ; une future implémentation \texttt{S3Storage} (à écrire en S7) parlera à MinIO sans qu'aucune autre ligne du projet ne doive changer.
+
+\begin{lstlisting}[style=python]
+class Storage(Protocol):
+    """Interface commune des backends de stockage."""
+    def write(self, key: str, content: bytes) -> None: ...
+    def read(self, key: str) -> bytes: ...
+    def exists(self, key: str) -> bool: ...
+    def list_prefix(self, prefix: str) -> Iterable[str]: ...
+
+class FilesystemStorage:
+    """Backend systeme de fichiers local."""
+    def __init__(self, root):
+        self.root = Path(root)
+    def write(self, key: str, content: bytes) -> None:
+        path = self._path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    # ... read, exists, list_prefix
+\end{lstlisting}
+
+Cette abstraction représente un investissement de quelques dizaines de lignes pour un bénéfice double : portabilité technique réelle, et démonstration en soutenance d'un principe de conception logicielle propre (séparation interface / implémentation).
+
+\subsection{Périmètre : codes ROME de la famille M18}
+
+La collecte par mots-clés (« data engineer », etc.) de la version S1 a été remplacée par une collecte par \textbf{codes métier ROME}, plus robuste et plus exhaustive. Le ROME (Répertoire Opérationnel des Métiers et des Emplois) est la classification officielle utilisée par France Travail ; la famille M18 « Informatique et télécommunications » regroupe les métiers qui définissent le périmètre tech du projet.
+
+\begin{center}
+\begin{tabular}{p{1.5cm} p{10cm}}
+\toprule
+\textbf{Code} & \textbf{Libellé} \\
+\midrule
+M1801 & Administration de systèmes d'information \\
+M1802 & Conseil et maîtrise d'ouvrage en systèmes d'information \\
+M1803 & Direction des systèmes d'information \\
+M1805 & Études et développement informatique (le plus large, contient développement et data) \\
+M1806 & Conseil et MOA en systèmes d'information / études \\
+M1810 & Production et exploitation de systèmes d'information \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Cette liste est consignée dans un fichier \texttt{config.py} dédié et versionné. Elle reste à valider définitivement avec l'encadrant à partir du référentiel ROME 4.0 officiel.
+
+\subsection{Pipeline en deux étapes, deux modes}
+
+Le pipeline est désormais articulé en deux étapes découplées :
+
+\begin{itemize}
+    \item \textbf{Étape 1 — Extract $\rightarrow$ Lac.} Appelle l'API en paginant pour chaque code ROME, écrit chaque réponse brute dans un fichier JSON immuable au chemin \texttt{data/raw/<source>/<an>/<mois>/<jour>/<rome>\_<rangeStart>-<rangeEnd>.json}. Aucune transformation.
+    \item \textbf{Étape 2 — Lac $\rightarrow$ DB.} Lit les fichiers du lac d'une journée, parse les offres, les insère dans la table \texttt{offres} de PostgreSQL (toujours avec \texttt{ON CONFLICT DO NOTHING}). Si cette étape échoue, on la rejoue depuis le lac sans rappeler l'API.
+\end{itemize}
+
+Deux modes d'exécution complètent cette articulation :
+
+\begin{itemize}
+    \item \textbf{Mode \texttt{backfill}}, exécuté une seule fois au démarrage, pour capturer l'ensemble des offres tech actives à un instant donné.
+    \item \textbf{Mode \texttt{quotidien}}, à planifier en routine, qui n'interroge que les offres créées depuis une fenêtre de jours (paramètre \texttt{minCreationDate}). Le volume incrémental est modeste et reste très en deçà du plafond de 1150.
+\end{itemize}
+
+\subsection{Pagination réelle du client API}
+
+Le client \texttt{france\_travail\_client.py} a été étendu pour gérer la pagination réelle. Une fonction \texttt{paginate} boucle sur les plages \texttt{range} jusqu'au total annoncé par l'en-tête HTTP \texttt{Content-Range}, dans la limite du plafond de l'API. Un sleep de courtoisie de 500 ms entre les appels protège le service.
+
+\begin{lstlisting}[style=python]
+def paginate(token, code_rome, min_creation_date=None, max_creation_date=None):
+    """Itere sur toutes les pages d'une recherche.
+
+    Plafond dur de l'API : 1150 resultats par recherche.
+    Si la recherche depasse ce plafond, l'appelant doit sous-decouper
+    (par fenetre de dates, par departement, etc.).
+    """
+    range_start = 0
+    while True:
+        range_end = min(range_start + PAGE_SIZE - 1, MAX_RANGE_END)
+        payload, total = fetch_page(
+            token, code_rome, range_start, range_end,
+            min_creation_date=min_creation_date,
+            max_creation_date=max_creation_date,
+        )
+        yield range_start, range_end, payload, total
+        if total is None or range_end >= total - 1 or range_end >= MAX_RANGE_END:
+            break
+        range_start = range_end + 1
+        time.sleep(COURTESY_SLEEP_SEC)
+\end{lstlisting}
+
+\subsection{Premier backfill : résultats}
+
+Le pipeline a été déclenché en mode backfill le 27 mai 2026 :
+
+\begin{lstlisting}[style=bash]
+python ingestion/run_france_travail.py --mode backfill
+\end{lstlisting}
+
+L'étape 1 a produit \textbf{26 fichiers JSON} couvrant les six codes ROME du périmètre, soit \textbf{3 420 offres} archivées dans le lac. Aucun code ROME ne dépasse le plafond de 1150 : à ce stade, la collecte n'a pas besoin de sous-découpage par dates.
+
+\begin{center}
+\begin{tabular}{l r r}
+\toprule
+\textbf{Code ROME} & \textbf{Offres} & \textbf{Pages} \\
+\midrule
+M1801 & 433 & 3 \\
+M1802 & 664 & 5 \\
+M1803 & 233 & 2 \\
+M1805 & 676 & 5 \\
+M1806 & 784 & 6 \\
+M1810 & 630 & 5 \\
+\midrule
+\textbf{Total} & \textbf{3 420} & \textbf{26} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+L'étape 2 a échoué au premier essai, PostgreSQL n'étant pas démarré. Cette panne, qui aurait été coûteuse en S1 (perte de la donnée en mémoire, nouveau quota d'API à consommer), a été ici sans conséquence : après démarrage de Docker, la commande \texttt{python ingestion/run\_france\_travail.py --skip-extract} a rejoué le chargement depuis les fichiers du lac, sans aucun rappel API. \emph{Le bénéfice du découplage a été observé en condition réelle dès le premier test.}
+
+\subsection{Analyse exploratoire de la donnée collectée}
+
+Quatre requêtes SQL ont été exécutées sur les 3 420 offres pour cartographier le dataset avant la phase LLM (S3). Ces analyses ont mis en évidence quatre caractéristiques importantes pour la suite.
+
+\textbf{Descriptions tronquées à 5 000 caractères.} La longueur maximale de description observée est exactement 5 000 (longueur moyenne : 2 451 caractères). C'est la limite imposée par l'API : pour les offres très détaillées, une partie du texte est invisible. Limite à documenter ; le LLM travaillera sur la portion exposée.
+
+\textbf{Bruit important dans les intitulés.} Deux entrées dominent le classement :
+
+\begin{itemize}
+    \item « Consultant / Consultante informatique (H/F) » --- 245 offres, intitulé non informatif
+    \item « Consultant / Formateur Numérique (H/F) - Franchisé/e » --- 192 offres, presque certainement des annonces de \emph{vente de franchise} et non d'embauche salariée
+\end{itemize}
+
+Ces deux entrées totalisent 437 offres, soit environ 13~\% du dataset, dont une grande partie devra être filtrée ou traitée à part avant l'extraction LLM.
+
+\textbf{Métiers data / IA très dilués dans les intitulés.} Le top 20 ne contient que quelques mentions explicites de profils techniques (« Développeur JAVA » 23 offres, « Big Data » 19, « Développeur informatique » 15). Aucune mention directe de « data scientist », « ML engineer » ou « ingénieur IA ». Ce résultat \emph{justifie a posteriori l'usage d'un LLM en S3} : l'information sur la dimension IA des postes ne se trouve pas dans les intitulés, mais dans le corps des descriptions.
+
+\textbf{Répartition géographique à investiguer.} 75~\% des offres sont classées « Autre / NA » par un mapping géographique simple. Pour une France tech où Paris seul concentre habituellement 40 à 50~\% des offres, ce chiffre est anormalement bas. Trois hypothèses à creuser : champ \texttt{code\_postal} fréquemment manquant dans l'API, mapping trop pauvre (manque Toulouse, Nantes, Bordeaux, Rennes, Lille, etc.), information stockée dans \texttt{lieu\_libelle} plutôt que dans \texttt{code\_postal}. Une requête de diagnostic est prévue pour trancher.
+
+
+\subsection{Bilan S2 et perspectives S3}
+
+À l'issue de la semaine 2, la brique d'ingestion est passée d'un prototype fonctionnel à une chaîne robuste : architecture en deux étages, abstraction de stockage portable, pagination réelle couvrant les six codes ROME du périmètre, deux modes d'exécution, gestion gracieuse des pannes côté base. Un premier backfill a produit un dataset utilisable de 3 420 offres, dont une analyse exploratoire a permis d'identifier des caractéristiques importantes (bruit, troncature, biais géographique) qui orienteront la conception du pipeline LLM.
+
+La semaine 3 prend la suite avec la mise en place du pipeline d'extraction par LLM : extraction JSON structurée des compétences techniques, du niveau de séniorité, de la fourchette de salaire, des jours de télétravail, du type de contrat et de la mention de l'IA dans les missions. Le choix de la stratégie LLM (API cloud, déploiement local via Ollama, ou repli sans LLM par dictionnaire et matching approximatif) sera tranché avec l'encadrant lors de la prochaine réunion hebdomadaire, sur la base d'une note de décision en préparation.
+
+\end{document}
