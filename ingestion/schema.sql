@@ -1,28 +1,45 @@
-CREATE TABLE sources (
-    id SERIAL PRIMARY KEY,
-    nom VARCHAR(50) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS sources (
+    id   SERIAL PRIMARY KEY,
+    nom  VARCHAR(50) UNIQUE NOT NULL
 );
 
-INSERT INTO sources (nom) VALUES ('france_travail'), ('wttj')
+INSERT INTO sources (nom) VALUES ('france_travail')
 ON CONFLICT (nom) DO NOTHING;
 
+INSERT INTO sources (nom) VALUES ('wttj')
+ON CONFLICT (nom) DO NOTHING;
 
-CREATE TABLE offres (
-    id VARCHAR(50) PRIMARY KEY,
-    source_id INTEGER NOT NULL REFERENCES sources(id),
-    intitule VARCHAR(255) NOT NULL,
-    description TEXT,
-    date_creation TIMESTAMP NOT NULL,
-    lieu_libelle VARCHAR(255),
-    code_postal VARCHAR(10),
-    entreprise_nom VARCHAR(255),
-    type_contrat VARCHAR(50),
-    salaire_libelle VARCHAR(100),
-    raw_json JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS offres (
+    id              VARCHAR         PRIMARY KEY,
+    source_id       INTEGER         REFERENCES sources(id),
+    intitule        TEXT,
+    description     TEXT,
+    date_creation   TIMESTAMP,
+    lieu_libelle    TEXT,
+    code_postal     VARCHAR(10),
+    entreprise_nom  TEXT,
+    type_contrat    VARCHAR(20),
+    salaire_libelle TEXT,
+    date_ingestion  TIMESTAMP       DEFAULT NOW(),
+    raw_json        JSONB
 );
-
-CREATE INDEX idx_offres_source ON offres(source_id);
-CREATE INDEX idx_offres_date ON offres(date_creation DESC);
-
+CREATE TABLE IF NOT EXISTS offres_llm (
+    offre_id        VARCHAR     PRIMARY KEY REFERENCES offres(id),
+    competences     JSONB,
+    seniorite       VARCHAR(20),
+    salaire_min     INTEGER,
+    salaire_max     INTEGER,
+    jours_teletravail INTEGER,
+    type_contrat    VARCHAR(20),
+    mention_ia      BOOLEAN,
+    date_extraction TIMESTAMP   DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS competences_normalisees (
+    id              SERIAL PRIMARY KEY,
+    offre_id        VARCHAR REFERENCES offres(id),
+    competence_brute    TEXT,
+    competence_canonique TEXT,
+    categorie       VARCHAR(20),
+    score_similarite INTEGER,
+    date_normalisation TIMESTAMP DEFAULT NOW()
+);
