@@ -4,6 +4,7 @@ import psycopg2
 import extractor
 import mistral_client
 import json
+
 def get_offres_sans_llm(conn):
     cursor = conn.cursor()
     cursor.execute("""
