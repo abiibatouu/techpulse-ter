@@ -65,6 +65,9 @@ def store_offres(offres_list, source_nom, conn):
         type_contrat = offre.get("typeContrat")
         salaire = offre.get("salaire") or {}
         salaire_libelle = salaire.get("libelle")
+        # Code metier ROME : sert aux filtres et analyses "par metier".
+        code_rome = offre.get("romeCode")
+        libelle_rome = offre.get("romeLibelle")
         # raw_json reste pour l'instant : redondant avec le lac, sera retire en S7.
         raw_json = json.dumps(offre, ensure_ascii=False)
 
@@ -72,14 +75,14 @@ def store_offres(offres_list, source_nom, conn):
             INSERT INTO offres (
                 id, source_id, intitule, description, date_creation,
                 lieu_libelle, code_postal, entreprise_nom, type_contrat,
-                salaire_libelle, raw_json
+                salaire_libelle, code_rome, libelle_rome, raw_json
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO NOTHING
         """, (
             id_, source_id, intitule, description, date_creation,
             lieu_libelle, code_postal, entreprise_nom, type_contrat,
-            salaire_libelle, raw_json,
+            salaire_libelle, code_rome, libelle_rome, raw_json,
         ))
         nb_inserees += cursor.rowcount
 

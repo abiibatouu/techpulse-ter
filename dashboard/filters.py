@@ -8,13 +8,27 @@ import streamlit as st
 from style import html_sidebar_header, html_sidebar_footer
 
 
-def render_filters(regions: list[str], seniorites: list[str], categories: list[str]) -> dict:
+def render_filters(
+    regions: list[str],
+    seniorites: list[str],
+    categories: list[str],
+    metiers: list[tuple[str, str]] | None = None,
+) -> dict:
     """Affiche les filtres dans la sidebar et retourne les valeurs sélectionnées.
 
     Retourne un dict :
-        { "region", "seniorite", "categorie", "top_n" }
+        { "region", "seniorite", "categorie", "metier", "top_n" }
     """
+    metiers = metiers or []
     st.sidebar.markdown(html_sidebar_header(), unsafe_allow_html=True)
+
+    # metiers = liste de (code_rome, libellé) : on affiche le libellé, on filtre sur le code.
+    label_vers_code = {libelle: code for code, libelle in metiers}
+    metier_choice = st.sidebar.selectbox(
+        "Métier (ROME)",
+        ["Tous les métiers"] + list(label_vers_code.keys()),
+    )
+    metier = label_vers_code.get(metier_choice)  # None pour "Tous les métiers"
 
     region_choice = st.sidebar.selectbox(
         "Région",
@@ -43,5 +57,6 @@ def render_filters(regions: list[str], seniorites: list[str], categories: list[s
         "region":    region,
         "seniorite": seniorite,
         "categorie": categorie,
+        "metier":    metier,
         "top_n":     top_n,
     }

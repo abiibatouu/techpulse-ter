@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS offres (
     entreprise_nom  TEXT,
     type_contrat    VARCHAR(20),
     salaire_libelle TEXT,
+    code_rome       VARCHAR(10),
+    libelle_rome    TEXT,
     date_ingestion  TIMESTAMP       DEFAULT NOW(),
     raw_json        JSONB
 );

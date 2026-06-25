@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 
 from database import (
-    get_regions, get_seniorites, get_categories, get_kpis,
+    get_regions, get_seniorites, get_categories, get_metiers, get_kpis,
     get_top_competences, get_repartition_categories,
     get_salaire_par_seniorite, get_evolution_temporelle,
     get_ia_vs_classiques, get_correlation_seniorite_ia, get_disparites_geo,
@@ -48,18 +48,19 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 @st.cache_data(ttl=600)
 def load_filter_options():
-    return get_regions(), get_seniorites(), get_categories()
+    return get_regions(), get_seniorites(), get_categories(), get_metiers()
 
 
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
 
-regions, seniorites, categories = load_filter_options()
-filtres   = render_filters(regions, seniorites, categories)
+regions, seniorites, categories, metiers = load_filter_options()
+filtres   = render_filters(regions, seniorites, categories, metiers)
 region    = filtres["region"]
 seniorite = filtres["seniorite"]
 categorie = filtres["categorie"]
+metier    = filtres["metier"]
 top_n     = filtres["top_n"]
 
 
@@ -67,7 +68,7 @@ top_n     = filtres["top_n"]
 # KPIs
 # ---------------------------------------------------------------------------
 
-kpis = get_kpis(region=region, seniorite=seniorite)
+kpis = get_kpis(region=region, seniorite=seniorite, metier=metier)
 
 # Header avec le nombre d'offres intégré
 st.markdown(html_header(kpis["nb_offres"]), unsafe_allow_html=True)
@@ -102,12 +103,13 @@ with tab1:
 
     with col_left:
         df_top = get_top_competences(
-            region=region, seniorite=seniorite, categorie=categorie, top_n=top_n
+            region=region, seniorite=seniorite, categorie=categorie,
+            top_n=top_n, metier=metier,
         )
         st.plotly_chart(chart_top_competences(df_top), use_container_width=True, key="top_comp")
 
     with col_right:
-        df_cat = get_repartition_categories(region=region, seniorite=seniorite)
+        df_cat = get_repartition_categories(region=region, seniorite=seniorite, metier=metier)
         st.plotly_chart(chart_repartition_categories(df_cat), use_container_width=True, key="repartition_cat")
 
     st.markdown(html_section("Salaires & activité"), unsafe_allow_html=True)
