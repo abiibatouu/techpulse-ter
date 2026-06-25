@@ -23,7 +23,7 @@ Lancement, depuis la racine du projet :
     python ingestion/run_france_travail.py --skip-extract  (recharge seulement)
 """
 import argparse
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -44,9 +44,13 @@ def extract_to_lake(storage_, mode):
     today = date.today()
 
     min_creation_date = None
+    max_creation_date = None
     if mode == "quotidien":
         depuis = today - timedelta(days=JOURS_QUOTIDIEN)
         min_creation_date = depuis.strftime("%Y-%m-%dT00:00:00Z")
+        # France Travail exige les deux bornes ensemble : si minCreationDate est
+        # fournie, maxCreationDate doit l'etre aussi, sinon l'API renvoie 400.
+        max_creation_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         print(f"Collecte quotidienne : offres creees depuis {min_creation_date}")
     else:
         print("Backfill : toutes les offres actives actuelles")
@@ -57,7 +61,9 @@ def extract_to_lake(storage_, mode):
         nb_pages = 0
         total_annonce = None
         for range_start, range_end, payload, total in france_travail_client.paginate(
-            token, code_rome, min_creation_date=min_creation_date,
+            token, code_rome,
+            min_creation_date=min_creation_date,
+            max_creation_date=max_creation_date,
         ):
             if total_annonce is None:
                 total_annonce = total

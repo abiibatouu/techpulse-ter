@@ -75,6 +75,25 @@ python taxonomy/run_taxonomy.py       # normalise les competences -> competences
 streamlit run dashboard/app.py
 ```
 
+## Orchestration (Prefect)
+
+Le pipeline complet (ingestion → extraction LLM → taxonomie) est orchestré par un
+flow Prefect dans `orchestration/flow.py`.
+
+```bash
+# Un run immédiat (collecte incrémentale du jour) :
+python orchestration/flow.py
+
+# Un run en chargement complet :
+python orchestration/flow.py --mode backfill
+
+# Planifier le pipeline tous les jours à 06h00 (laisser le process tourner) :
+python orchestration/flow.py --serve
+```
+
+Le flow réessaie automatiquement les étapes en cas d'échec transitoire (API
+indisponible, etc.) et trace les logs de chaque étape dans Prefect.
+
 ## Architecture
 
 ```
@@ -87,6 +106,7 @@ ingestion/
   run_france_travail.py       → orchestrateur (extract → lac → DB)
 llm/                          → Extraction par LLM Mistral (S3)
 taxonomy/                     → Normalisation des compétences (S4)
+orchestration/                → Flow Prefect (ingestion → LLM → taxonomie)
 dashboard/                    → Dashboard Streamlit (S5-6)
 data/raw/                     → lac (non versionné, cf .gitignore)
 Dockerfile / docker-compose.yml → déploiement (PostgreSQL + dashboard)
