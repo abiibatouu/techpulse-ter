@@ -2,7 +2,7 @@
 
 Responsabilité unique : exécuter les requêtes SQL et retourner des DataFrames.
 Ce module ne sait rien de Streamlit, ni de Plotly.
-Toute la logique de filtrage SQL est ici — l'interface ne construit jamais de SQL.
+Toute la logique de filtrage SQL est ici. L'interface ne construit jamais de SQL.
 
 Pourquoi SQLAlchemy plutôt que psycopg2 brut ?
 → pandas.read_sql_query() est optimisé pour SQLAlchemy et émet un warning sinon.
@@ -20,7 +20,7 @@ load_dotenv()
 
 
 # ---------------------------------------------------------------------------
-# Connexion (psycopg2 — cohérent avec ingestion/db.py)
+# Connexion (psycopg2, cohérent avec ingestion/db.py)
 # ---------------------------------------------------------------------------
 
 def get_connection():
@@ -241,6 +241,49 @@ def get_salaire_par_seniorite(
         {where}
         GROUP BY ol.seniorite
         ORDER BY salaire_min_moyen DESC
+    """
+    return _query(sql, params)
+
+
+def get_salaire_par_competence(
+    region: str | None = None,
+    seniorite: str | None = None,
+    metier: str | None = None,
+    top_n: int = 15,
+) -> pd.DataFrame:
+    """Salaire médian par compétence : quelles compétences paient le mieux ?
+
+    Médiane (PERCENTILE_CONT) du milieu de fourchette (salaire_min+max)/2.
+    On ne garde que les compétences avec >= 5 offres salariées pour que la
+    médiane soit fiable.
+
+    Colonnes : competence_canonique, categorie, salaire_median, nb_offres.
+    """
+    where, params = _build_where(region, seniorite, metier)
+
+    connector = "AND" if where else "WHERE"
+    where += (
+        f" {connector} cn.competence_canonique IS NOT NULL"
+        " AND ol.salaire_min IS NOT NULL AND ol.salaire_max IS NOT NULL"
+    )
+    params["top_n"] = top_n
+
+    sql = f"""
+        SELECT
+            cn.competence_canonique,
+            cn.categorie,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (
+                ORDER BY (ol.salaire_min + ol.salaire_max) / 2.0
+            )) AS salaire_median,
+            COUNT(DISTINCT o.id) AS nb_offres
+        FROM competences_normalisees cn
+        JOIN offres o ON o.id = cn.offre_id
+        JOIN offres_llm ol ON ol.offre_id = cn.offre_id
+        {where}
+        GROUP BY cn.competence_canonique, cn.categorie
+        HAVING COUNT(DISTINCT o.id) >= 5
+        ORDER BY salaire_median DESC
+        LIMIT %(top_n)s
     """
     return _query(sql, params)
 

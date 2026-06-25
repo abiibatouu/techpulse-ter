@@ -8,7 +8,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-from style import COULEURS, LABELS_CATEGORIES, COULEURS_ZONES, PLOTLY_LAYOUT
+from style import (
+    COULEURS, LABELS_CATEGORIES, COULEURS_ZONES, PLOTLY_LAYOUT,
+    ENCRE, ACCENT, GRIS, GRIS_CLAIR, GRIS_FORT,
+)
 
 
 def _apply_theme(fig: go.Figure, height: int = 400) -> go.Figure:
@@ -22,7 +25,7 @@ def _label(cat: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Onglet 1 — Top compétences
+# Onglet 1 : Top compétences
 # ---------------------------------------------------------------------------
 
 def chart_top_competences(df: pd.DataFrame) -> go.Figure:
@@ -83,7 +86,7 @@ def chart_repartition_categories(df: pd.DataFrame) -> go.Figure:
         values=df["nb_offres"],
         hole=0.55,
         marker=dict(
-            colors=[COULEURS.get(c, "#94A3B8") for c in df["categorie"]],
+            colors=[COULEURS.get(c, GRIS) for c in df["categorie"]],
             line=dict(color="white", width=2),
         ),
         textinfo="percent",
@@ -127,7 +130,7 @@ def chart_salaires(df: pd.DataFrame) -> go.Figure:
         name="Min moyen",
         x=df["seniorite"],
         y=df["salaire_min_moyen"],
-        marker_color="#BFDBFE",
+        marker_color=GRIS_CLAIR,
         marker_line_width=0,
         text=df["salaire_min_moyen"].apply(lambda v: f"{int(v):,} €"),
         textposition="outside",
@@ -137,7 +140,7 @@ def chart_salaires(df: pd.DataFrame) -> go.Figure:
         name="Max moyen",
         x=df["seniorite"],
         y=df["salaire_max_moyen"],
-        marker_color="#2563EB",
+        marker_color=ENCRE,
         marker_line_width=0,
         text=df["salaire_max_moyen"].apply(lambda v: f"{int(v):,} €"),
         textposition="outside",
@@ -155,6 +158,47 @@ def chart_salaires(df: pd.DataFrame) -> go.Figure:
     return _apply_theme(fig, height=350)
 
 
+def chart_salaire_par_competence(df: pd.DataFrame) -> go.Figure:
+    """Barres horizontales : salaire médian par compétence (les mieux payées en haut)."""
+    if df.empty:
+        return _vide("Pas assez de données salariales par compétence.")
+
+    df = df.copy().sort_values("salaire_median", ascending=True)
+    df["salaire_median"] = df["salaire_median"].astype(float)
+
+    fig = px.bar(
+        df,
+        x="salaire_median",
+        y="competence_canonique",
+        color="categorie",
+        color_discrete_map=COULEURS,
+        orientation="h",
+        text=df["salaire_median"].apply(lambda v: f"{int(v):,} €"),
+        labels={
+            "salaire_median": "Salaire médian (€/an)",
+            "competence_canonique": "",
+            "categorie": "Catégorie",
+        },
+    )
+    fig.update_traces(
+        textposition="outside",
+        textfont=dict(size=11, color="#6B7280"),
+        marker_line_width=0,
+    )
+    fig.update_layout(
+        title="Salaire médian par compétence (€/an)",
+        showlegend=True,
+        legend=dict(
+            title=None, orientation="h",
+            yanchor="bottom", y=1.02, xanchor="right", x=1,
+        ),
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(showgrid=False, categoryorder="total ascending"),
+        bargap=0.35,
+    )
+    return _apply_theme(fig, height=max(380, len(df) * 30))
+
+
 def chart_evolution(df: pd.DataFrame) -> go.Figure:
     """Aire : volume d'offres par semaine."""
     if df.empty or len(df) < 2:
@@ -169,8 +213,8 @@ def chart_evolution(df: pd.DataFrame) -> go.Figure:
         y=df["nb_offres"],
         mode="lines",
         fill="tozeroy",
-        line=dict(color="#2563EB", width=2),
-        fillcolor="rgba(37,99,235,0.08)",
+        line=dict(color=ENCRE, width=2),
+        fillcolor="rgba(20,20,20,0.06)",
         hovertemplate="<b>%{x|%d %b %Y}</b><br>%{y} offres<extra></extra>",
     ))
     fig.update_layout(
@@ -182,7 +226,7 @@ def chart_evolution(df: pd.DataFrame) -> go.Figure:
 
 
 # ---------------------------------------------------------------------------
-# Onglet 2 — IA vs Classiques
+# Onglet 2 : IA vs Classiques
 # ---------------------------------------------------------------------------
 
 def chart_ia_vs_classiques(df: pd.DataFrame) -> go.Figure:
@@ -208,7 +252,7 @@ def chart_ia_vs_classiques(df: pd.DataFrame) -> go.Figure:
             hovertemplate=f"<b>{_label(cat)}</b><br>%{{x|%B %Y}}<br>%{{y}} offres<extra></extra>",
         ))
     fig.update_layout(
-        title="Compétences IA vs Classiques — évolution mensuelle",
+        title="Compétences IA vs Classiques, évolution mensuelle",
         xaxis=dict(showgrid=False, tickformat="%b %Y"),
         yaxis=dict(showgrid=True),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -217,7 +261,7 @@ def chart_ia_vs_classiques(df: pd.DataFrame) -> go.Figure:
 
 
 # ---------------------------------------------------------------------------
-# Onglet 3 — Séniorité & IA
+# Onglet 3 : Séniorité & IA
 # ---------------------------------------------------------------------------
 
 def chart_correlation_seniorite_ia(df: pd.DataFrame) -> go.Figure:
@@ -232,7 +276,7 @@ def chart_correlation_seniorite_ia(df: pd.DataFrame) -> go.Figure:
     # Dégradé de couleur selon le %
     max_pct = float(df["pct_ia"].max()) or 1.0
     colors = [
-        f"rgba(245,158,11,{0.3 + 0.7 * (float(v) / max_pct):.2f})"
+        f"rgba(226,35,26,{0.25 + 0.75 * (float(v) / max_pct):.2f})"
         for v in df["pct_ia"]
     ]
 
@@ -263,7 +307,7 @@ def chart_correlation_seniorite_ia(df: pd.DataFrame) -> go.Figure:
 
 
 # ---------------------------------------------------------------------------
-# Onglet 4 — Géographie
+# Onglet 4 : Géographie
 # ---------------------------------------------------------------------------
 
 def chart_disparites_geo(df: pd.DataFrame) -> go.Figure:
@@ -279,7 +323,7 @@ def chart_disparites_geo(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     for _, row in df.iterrows():
         zone = row["zone"]
-        color = COULEURS_ZONES.get(zone, "#94A3B8")
+        color = COULEURS_ZONES.get(zone, GRIS)
         fig.add_trace(go.Scatter(
             x=[row["salaire_median"]],
             y=[row["pct_ia"]],
@@ -302,7 +346,7 @@ def chart_disparites_geo(df: pd.DataFrame) -> go.Figure:
             ),
         ))
     fig.update_layout(
-        title="Disparités géographiques — salaire médian vs présence de l'IA",
+        title="Disparités géographiques, salaire médian vs présence de l'IA",
         xaxis=dict(title="Salaire médian annuel (€)", tickformat=",.0f", ticksuffix=" €"),
         yaxis=dict(title="% offres mentionnant l'IA", ticksuffix=" %"),
         showlegend=False,

@@ -1,18 +1,32 @@
-"""Système de design TechPulse.
+"""Système de design TechPulse, style suisse / international.
 
 Responsabilité unique : définir les styles CSS et les composants HTML réutilisables.
 Aucune logique métier, aucune requête SQL ici.
+
+Principes : monochrome « encre » + un seul accent (rouge signal), filets fins
+plutôt que cartes, coins droits, typographie Helvetica, beaucoup de blanc.
+Pas de dégradé, pas de pilule, pas de palette arc-en-ciel.
 """
 
 # ---------------------------------------------------------------------------
-# Palette de couleurs — cohérente dans tout le dashboard
+# Palette : monochrome « encre » + un unique accent
 # ---------------------------------------------------------------------------
 
+ENCRE      = "#141414"   # quasi-noir : texte et série de données principale
+GRIS_FORT  = "#5A5A5A"
+GRIS       = "#8C8C8C"
+GRIS_CLAIR = "#C2C2C2"
+FILET      = "#E4E4E4"   # filets (hairlines)
+ACCENT     = "#E2231A"   # rouge signal, réservé à l'emphase (IA, sélection)
+
+# Couleurs par catégorie : tout en encre/gris, l'IA seule en accent.
+# Choix éditorial : le rouge fait ressortir la donnée « IA », qui est le sujet
+# du tableau de bord.
 COULEURS = {
-    "classique":  "#3B82F6",   # bleu
-    "ia_llm":     "#F59E0B",   # ambre
-    "emergente":  "#10B981",   # vert émeraude
-    "soft_skill": "#8B5CF6",   # violet
+    "classique":  ENCRE,
+    "ia_llm":     ACCENT,
+    "emergente":  GRIS,
+    "soft_skill": GRIS_CLAIR,
 }
 
 LABELS_CATEGORIES = {
@@ -23,45 +37,46 @@ LABELS_CATEGORIES = {
 }
 
 COULEURS_ZONES = {
-    "Paris":              "#EF4444",
-    "Full remote":        "#10B981",
-    "Villes secondaires": "#6366F1",
+    "Paris":              ENCRE,
+    "Full remote":        ACCENT,
+    "Villes secondaires": GRIS,
 }
 
 # Thème Plotly appliqué à tous les graphiques
+_FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+
 PLOTLY_LAYOUT = dict(
-    font=dict(
-        family="'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif",
-        size=13,
-        color="#374151",
-    ),
+    font=dict(family=_FONT, size=13, color=ENCRE),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(l=16, r=16, t=48, b=16),
+    margin=dict(l=8, r=8, t=52, b=8),
+    colorway=[ENCRE, ACCENT, GRIS, GRIS_CLAIR],
     legend=dict(
-        bgcolor="rgba(255,255,255,0.8)",
-        bordercolor="#E5E7EB",
-        borderwidth=1,
+        bgcolor="rgba(0,0,0,0)",
+        bordercolor="rgba(0,0,0,0)",
+        borderwidth=0,
+        font=dict(size=12, color=GRIS_FORT),
     ),
     xaxis=dict(
-        gridcolor="#F3F4F6",
-        linecolor="#E5E7EB",
-        tickfont=dict(size=12),
+        gridcolor=FILET,
+        linecolor=ENCRE,
+        zerolinecolor=FILET,
+        tickfont=dict(size=11, color=GRIS_FORT),
     ),
     yaxis=dict(
-        gridcolor="#F3F4F6",
-        linecolor="#E5E7EB",
-        tickfont=dict(size=12),
+        gridcolor=FILET,
+        linecolor=ENCRE,
+        zerolinecolor=FILET,
+        tickfont=dict(size=11, color=GRIS_FORT),
     ),
     title=dict(
-        font=dict(size=15, color="#111827", family="Inter, sans-serif"),
-        x=0,
-        xanchor="left",
+        font=dict(size=14, color=ENCRE, family=_FONT),
+        x=0, xanchor="left", y=0.97,
     ),
     hoverlabel=dict(
-        bgcolor="white",
-        bordercolor="#E5E7EB",
-        font=dict(size=13, family="Inter, sans-serif"),
+        bgcolor=ENCRE,
+        bordercolor=ENCRE,
+        font=dict(size=12, color="white", family=_FONT),
     ),
 )
 
@@ -72,194 +87,238 @@ PLOTLY_LAYOUT = dict(
 
 CSS = """
 <style>
-/* ── Police système — charge instantanément, pas de dépendance réseau ── */
-/* Segoe UI sur Windows, SF Pro sur Mac, Roboto sur Android/Linux        */
 :root {
-    --font: 'Segoe UI', -apple-system, BlinkMacSystemFont,
-            'Helvetica Neue', Arial, sans-serif;
+    --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --ink: #141414;
+    --gris-fort: #5A5A5A;
+    --gris: #8C8C8C;
+    --gris-clair: #C2C2C2;
+    --filet: #E4E4E4;
+    --accent: #E2231A;
 }
 
 /* ── Reset & base ─────────────────────────────────────────── */
-html, body, [class*="css"], .stMarkdown, .stText, button, input, select {
+html, body, [class*="css"], .stMarkdown, .stText,
+button, input, select, textarea {
     font-family: var(--font) !important;
+    -webkit-font-smoothing: antialiased;
 }
+.stApp { background: #FFFFFF; }
 
 .main .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 2rem;
-    max-width: 1280px;
+    padding-top: 2.2rem;
+    padding-bottom: 3rem;
+    max-width: 1180px;
+}
+/* Signature : court filet rouge en tête de page (repère typographique) */
+.main .block-container::before {
+    content: "";
+    display: block;
+    width: 56px;
+    height: 3px;
+    background: var(--accent);
+    margin-bottom: 1.5rem;
 }
 
-/* ── Header principal ─────────────────────────────────────── */
-.tp-header {
-    background: linear-gradient(135deg, #1B2A4A 0%, #2563EB 100%);
-    border-radius: 12px;
-    padding: 2rem 2.5rem;
-    margin-bottom: 1.75rem;
-    color: white;
-}
-.tp-header h1 {
-    margin: 0 0 0.35rem 0;
-    font-size: 1.9rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: white;
-}
-.tp-header p {
-    margin: 0;
-    font-size: 0.95rem;
-    color: rgba(255,255,255,0.75);
-    font-weight: 400;
-}
-.tp-header-meta {
-    margin-top: 1rem;
+/* ── Masthead ─────────────────────────────────────────────── */
+.tp-masthead {
     display: flex;
-    gap: 1.5rem;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 2rem;
+    padding: 0 0 1rem 0;
+    margin: 0 0 1.9rem 0;
+    border-bottom: 2px solid var(--ink);
 }
-.tp-badge {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 20px;
-    padding: 0.2rem 0.75rem;
-    font-size: 0.78rem;
-    color: rgba(255,255,255,0.9);
-    font-weight: 500;
+.tp-mark {
+    margin: 0;
+    font-size: 2.6rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink);
 }
+.tp-tagline {
+    margin: 0.7rem 0 0 0;
+    max-width: 48ch;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    font-weight: 400;
+    color: var(--gris-fort);
+}
+.tp-mast-right {
+    text-align: right;
+    flex-shrink: 0;
+    padding-bottom: 0.15rem;
+}
+.tp-meta-row {
+    font-size: 0.74rem;
+    line-height: 1.85;
+    letter-spacing: 0.04em;
+    color: var(--gris);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.tp-meta-row strong { color: var(--ink); font-weight: 700; }
 
-/* ── Cartes KPI ───────────────────────────────────────────── */
-.kpi-grid {
+/* ── Bloc KPI : gros chiffres, filets verticaux, zéro carte ── */
+.kpi-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    margin-bottom: 1.75rem;
+    border-top: 1px solid var(--filet);
+    border-bottom: 1px solid var(--filet);
+    margin: 0 0 2.1rem 0;
 }
-.kpi-card {
-    background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 10px;
-    padding: 1.25rem 1.5rem;
-    position: relative;
-    overflow: hidden;
-    transition: box-shadow 0.2s ease;
+.kpi-cell {
+    padding: 1.15rem 1.5rem 1.25rem 1.5rem;
+    border-left: 1px solid var(--filet);
 }
-.kpi-card:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-.kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--accent, #2563EB);
-    border-radius: 10px 10px 0 0;
-}
-.kpi-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #6B7280;
-    margin-bottom: 0.5rem;
-}
+.kpi-cell:first-child { border-left: 0; padding-left: 0; }
 .kpi-value {
-    font-size: 2rem;
+    font-size: 2.4rem;
     font-weight: 700;
-    color: #111827;
+    letter-spacing: -0.03em;
     line-height: 1;
-    margin-bottom: 0.25rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
 }
-.kpi-sub {
+.kpi-value.is-accent { color: var(--accent); }
+.kpi-label {
+    margin-top: 0.55rem;
     font-size: 0.78rem;
-    color: #9CA3AF;
+    font-weight: 500;
+    color: var(--ink);
+}
+.kpi-unit {
+    margin-top: 0.1rem;
+    font-size: 0.72rem;
+    color: var(--gris);
 }
 
-/* ── Séparateur de section ────────────────────────────────── */
+/* ── Titre de section : libellé + filet ───────────────────── */
 .tp-section {
-    margin: 1.5rem 0 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 2.1rem 0 1rem 0;
 }
 .tp-section-title {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #9CA3AF;
-    margin-bottom: 0.75rem;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+    white-space: nowrap;
+}
+.tp-section::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--filet);
 }
 
-/* ── Conteneur graphique ──────────────────────────────────── */
-.chart-card {
-    background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 10px;
-    padding: 0.25rem;
-    margin-bottom: 1rem;
+/* ── Légendes (st.caption) ────────────────────────────────── */
+[data-testid="stCaptionContainer"], .stCaption {
+    color: var(--gris-fort) !important;
+    font-size: 0.84rem !important;
+    line-height: 1.5;
+    max-width: 72ch;
 }
 
-/* ── Onglets ──────────────────────────────────────────────── */
+/* ── Onglets : plats, soulignés ───────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 0;
-    background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 10px;
-    padding: 0.25rem;
-    margin-bottom: 1.25rem;
+    gap: 1.6rem;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--filet);
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 1.5rem;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 7px;
-    padding: 0.5rem 1.25rem;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #6B7280;
-    border: none;
+    border-radius: 0;
+    padding: 0.5rem 0 0.8rem 0;
     background: transparent;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gris-fort);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
 }
 .stTabs [aria-selected="true"] {
-    background: #EFF6FF !important;
-    color: #2563EB !important;
-    font-weight: 600;
+    background: transparent !important;
+    color: var(--ink) !important;
+    font-weight: 700;
+    border-bottom: 2px solid var(--accent) !important;
 }
-.stTabs [data-baseweb="tab-highlight"] {
-    display: none;
-}
-.stTabs [data-baseweb="tab-border"] {
-    display: none;
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display: none; }
+
+/* ── Conteneur graphique (sans chrome) ────────────────────── */
+.chart-card {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0.5rem;
 }
 
 /* ── Sidebar ──────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: #F9FAFB;
-    border-right: 1px solid #E5E7EB;
+    background: #FAFAFA;
+    border-right: 1px solid var(--filet);
 }
-[data-testid="stSidebar"] .block-container {
-    padding-top: 1.5rem;
-}
+[data-testid="stSidebar"] .block-container { padding-top: 2.2rem; }
 .sidebar-title {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #6B7280;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #E5E7EB;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+    margin: 0 0 1.2rem 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--ink);
 }
 .sidebar-footer {
     font-size: 0.72rem;
-    color: #9CA3AF;
-    line-height: 1.6;
-    border-top: 1px solid #E5E7EB;
-    padding-top: 0.75rem;
-    margin-top: 1rem;
+    line-height: 1.75;
+    color: var(--gris);
+    border-top: 1px solid var(--filet);
+    padding-top: 0.9rem;
+    margin-top: 1.5rem;
 }
+
+/* ── Widgets : coins droits, filets fins, focus encre ─────── */
+[data-baseweb="select"] > div {
+    border-radius: 0 !important;
+    border-color: var(--filet) !important;
+}
+[data-baseweb="select"] > div:focus-within {
+    border-color: var(--ink) !important;
+    box-shadow: none !important;
+}
+[data-testid="stWidgetLabel"] p {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+/* ── Expander & dataframe : coins droits ──────────────────── */
+[data-testid="stExpander"] {
+    border-color: var(--filet) !important;
+    border-radius: 0 !important;
+}
+[data-testid="stExpander"] summary { border-radius: 0 !important; }
 
 /* ── Masquer les éléments Streamlit par défaut ────────────── */
 #MainMenu, footer, header { visibility: hidden; }
+[data-testid="stToolbar"] { display: none; }
 [data-testid="stMetric"] { display: none; }  /* on utilise nos propres cartes */
 
 /* ── Scrollbar fine ───────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #F3F4F6; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gris-clair); border-radius: 0; }
 </style>
 """
 
@@ -268,17 +327,23 @@ html, body, [class*="css"], .stMarkdown, .stText, button, input, select {
 # Composants HTML
 # ---------------------------------------------------------------------------
 
+def _n(v: int) -> str:
+    """Formate un entier avec une espace insécable comme séparateur (style FR)."""
+    return f"{v:,}".replace(",", " ")
+
+
 def html_header(nb_offres: int, date_maj: str = "Juin 2026") -> str:
     return f"""
-    <div class="tp-header">
-        <h1>TechPulse</h1>
-        <p>Observatoire de l'emploi tech &mdash;
-           Sur quelles technologies se former pour être compétitif en 2026&nbsp;?</p>
-        <div class="tp-header-meta">
-            <span class="tp-badge">API France Travail</span>
-            <span class="tp-badge">LLM Mistral</span>
-            <span class="tp-badge">{nb_offres:,} offres analysées</span>
-            <span class="tp-badge">Mise à jour : {date_maj}</span>
+    <div class="tp-masthead">
+        <div class="tp-mast-left">
+            <h1 class="tp-mark">TechPulse</h1>
+            <p class="tp-tagline">Observatoire de l'emploi tech,
+               sur quelles technologies se former pour rester compétitif en 2026.</p>
+        </div>
+        <div class="tp-mast-right">
+            <div class="tp-meta-row"><strong>{_n(nb_offres)}</strong> offres analysées</div>
+            <div class="tp-meta-row">API France Travail &middot; LLM Mistral</div>
+            <div class="tp-meta-row">Mise à jour : {date_maj}</div>
         </div>
     </div>
     """
@@ -291,26 +356,26 @@ def html_kpi_grid(
     teletravail: float,
 ) -> str:
     return f"""
-    <div class="kpi-grid">
-        <div class="kpi-card" style="--accent: #2563EB;">
+    <div class="kpi-row">
+        <div class="kpi-cell">
+            <div class="kpi-value">{_n(nb_offres)}</div>
             <div class="kpi-label">Offres analysées</div>
-            <div class="kpi-value">{nb_offres:,}</div>
-            <div class="kpi-sub">offres d'emploi tech</div>
+            <div class="kpi-unit">offres d'emploi tech</div>
         </div>
-        <div class="kpi-card" style="--accent: #10B981;">
+        <div class="kpi-cell">
+            <div class="kpi-value">{_n(nb_competences)}</div>
             <div class="kpi-label">Compétences distinctes</div>
-            <div class="kpi-value">{nb_competences:,}</div>
-            <div class="kpi-sub">compétences canoniques</div>
+            <div class="kpi-unit">compétences canoniques</div>
         </div>
-        <div class="kpi-card" style="--accent: #F59E0B;">
+        <div class="kpi-cell">
+            <div class="kpi-value is-accent">{pct_ia}&thinsp;%</div>
             <div class="kpi-label">Présence de l'IA</div>
-            <div class="kpi-value">{pct_ia}&thinsp;%</div>
-            <div class="kpi-sub">des offres mentionnent l'IA</div>
+            <div class="kpi-unit">des offres mentionnent l'IA</div>
         </div>
-        <div class="kpi-card" style="--accent: #8B5CF6;">
-            <div class="kpi-label">Télétravail moyen</div>
+        <div class="kpi-cell">
             <div class="kpi-value">{teletravail:.1f}</div>
-            <div class="kpi-sub">jours par semaine</div>
+            <div class="kpi-label">Télétravail moyen</div>
+            <div class="kpi-unit">jours par semaine</div>
         </div>
     </div>
     """
@@ -319,7 +384,7 @@ def html_kpi_grid(
 def html_section(titre: str) -> str:
     return f"""
     <div class="tp-section">
-        <div class="tp-section-title">{titre}</div>
+        <span class="tp-section-title">{titre}</span>
     </div>
     """
 
@@ -337,6 +402,9 @@ def html_sidebar_footer() -> str:
     <div class="sidebar-footer">
         Données : API France Travail<br>
         Extraction : Mistral AI<br>
-        TechPulse &mdash; Master SID AMU 2026
+        TechPulse, Master SID AMU 2026
     </div>
     """
+
+
+# Design : style suisse / international, encre + accent rouge, filets, coins droits.
