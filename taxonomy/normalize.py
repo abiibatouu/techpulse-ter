@@ -17,17 +17,32 @@ def normaliser(competence_brute):
     """
     candidats = list(taxonomy.TAXONOMY.keys())
     
-    resultat = process.extractOne(
+    # token_set_ratio (et non token_sort_ratio) : matche sur l'INTERSECTION
+    # des mots, donc retrouve une competence canonique noyee dans une chaine
+    # longue. Ex : "Windows Server" dans "Administration systeme (Windows
+    # Server 2019/2022, Debian)".
+    resultats = process.extract(
         competence_brute,
         candidats,
-        scorer=fuzz.token_sort_ratio
+        scorer=fuzz.token_set_ratio,
+        limit=10,
     )
-    
-    if resultat is None or resultat[1] < SEUIL_SIMILARITE:
+
+    if not resultats or resultats[0][1] < SEUIL_SIMILARITE:
         return None
-    
-    competence_canonique = resultat[0]
+
+    meilleur_score = resultats[0][1]
+
+    # Plusieurs canoniques peuvent etre a egalite : "Windows" ET "Windows
+    # Server" scorent tous deux 100 pour la brute "Windows Server", car
+    # token_set_ratio ignore les mots en trop. On departage en gardant le
+    # candidat le plus FIDELE a la chaine entiere (token_sort_ratio), ce qui
+    # privilegie le terme le plus specifique au lieu du plus generique.
+    ex_aequo = [cand for cand, score, _ in resultats if score == meilleur_score]
+    competence_canonique = max(
+        ex_aequo,
+        key=lambda cand: fuzz.token_sort_ratio(competence_brute, cand),
+    )
     categorie = taxonomy.TAXONOMY[competence_canonique]
-    score = resultat[1]
-    
-    return competence_canonique, categorie, score
+
+    return competence_canonique, categorie, meilleur_score
