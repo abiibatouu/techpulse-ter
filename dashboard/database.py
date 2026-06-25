@@ -136,9 +136,13 @@ def get_top_competences(
     """
     where, params = _build_where(region, seniorite)
 
+    # Exclure les competences non matchees (canonique NULL) : elles formaient
+    # une fausse ligne "None" qui dominait le classement et le tableau.
+    connector = "AND" if where else "WHERE"
+    where += f" {connector} cn.competence_canonique IS NOT NULL"
+
     if categorie:
-        connector = "AND" if where else "WHERE"
-        where += f" {connector} cn.categorie = %(categorie)s"
+        where += " AND cn.categorie = %(categorie)s"
         params["categorie"] = categorie
 
     params["top_n"] = top_n
@@ -312,8 +316,7 @@ def get_disparites_geo() -> pd.DataFrame:
         SELECT
             CASE
                 WHEN o.lieu_libelle ILIKE '%%Paris%%' THEN 'Paris'
-                WHEN ol.jours_teletravail ~ '^[0-9]+$'
-                     AND ol.jours_teletravail::INTEGER >= 5 THEN 'Full remote'
+                WHEN ol.jours_teletravail >= 5 THEN 'Full remote'
                 ELSE 'Villes secondaires'
             END                                                             AS zone,
             COUNT(DISTINCT o.id)                                            AS nb_offres,
@@ -324,11 +327,7 @@ def get_disparites_geo() -> pd.DataFrame:
             ))                                                              AS salaire_median,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                    AS pct_ia,
-            ROUND(AVG(
-                CASE WHEN ol.jours_teletravail ~ '^[0-9]+$'
-                     THEN ol.jours_teletravail::INTEGER
-                     ELSE NULL END
-            ))                                                              AS teletravail_moyen
+            ROUND(AVG(ol.jours_teletravail))                                AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         GROUP BY zone
@@ -343,8 +342,8 @@ def get_kpis(
 ) -> dict:
     """Indicateurs clés : nb offres, nb compétences uniques, % mention IA, télétravail.
 
-    Le CAST :: INTEGER est nécessaire car jours_teletravail peut être stocké
-    en VARCHAR dans la base — PostgreSQL ne peut pas faire AVG() sur du texte.
+    jours_teletravail est un INTEGER (NULL si non numérique, garanti par la
+    normalisation dans extractor.py), donc AVG() s'applique directement.
     """
     where, params = _build_where(region, seniorite)
 
@@ -354,11 +353,7 @@ def get_kpis(
             COUNT(DISTINCT cn.competence_canonique)                     AS nb_competences,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                AS pct_ia,
-            ROUND(AVG(
-                CASE WHEN ol.jours_teletravail ~ '^[0-9]+$'
-                     THEN ol.jours_teletravail::INTEGER
-                     ELSE NULL END
-            ))                                                          AS teletravail_moyen
+            ROUND(AVG(ol.jours_teletravail))                            AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         LEFT JOIN competences_normalisees cn ON cn.offre_id = o.id

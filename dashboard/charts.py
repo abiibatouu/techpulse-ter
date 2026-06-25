@@ -62,7 +62,9 @@ def chart_top_competences(df: pd.DataFrame) -> go.Figure:
             xanchor="right", x=1,
         ),
         xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        yaxis=dict(showgrid=False),
+        # Force le tri par valeur (sinon le coloriage par categorie regroupe
+        # les barres par couleur au lieu de les classer par nombre d'offres).
+        yaxis=dict(showgrid=False, categoryorder="total ascending"),
         bargap=0.35,
     )
     return _apply_theme(fig, height=max(380, len(df) * 30))
@@ -88,8 +90,11 @@ def chart_repartition_categories(df: pd.DataFrame) -> go.Figure:
         textfont=dict(size=12),
         hovertemplate="<b>%{label}</b><br>%{value} offres (%{percent})<extra></extra>",
     ))
+    # On affiche le NOMBRE DE CATEGORIES, pas une somme d'offres : un meme
+    # offre peut appartenir a plusieurs categories, donc sommer les parts
+    # double-compterait et donnerait un total > nb d'offres reelles.
     fig.add_annotation(
-        text=f"<b>{df['nb_offres'].sum():,}</b><br><span style='font-size:10px;color:#9CA3AF'>offres</span>",
+        text=f"<b>{len(df)}</b><br><span style='font-size:10px;color:#9CA3AF'>catégories</span>",
         x=0.5, y=0.5,
         showarrow=False,
         font=dict(size=16, color="#111827"),
