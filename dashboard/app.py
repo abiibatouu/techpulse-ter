@@ -104,22 +104,22 @@ with tab1:
         df_top = get_top_competences(
             region=region, seniorite=seniorite, categorie=categorie, top_n=top_n
         )
-        st.plotly_chart(chart_top_competences(df_top), use_container_width=True, key="top_comp")
+        st.plotly_chart(chart_top_competences(df_top), width="stretch", key="top_comp")
 
     with col_right:
         df_cat = get_repartition_categories(region=region, seniorite=seniorite)
-        st.plotly_chart(chart_repartition_categories(df_cat), use_container_width=True, key="repartition_cat")
+        st.plotly_chart(chart_repartition_categories(df_cat), width="stretch", key="repartition_cat")
 
     st.markdown(html_section("Salaires & activité"), unsafe_allow_html=True)
     col_sal, col_evo = st.columns(2, gap="medium")
 
     with col_sal:
         df_sal = get_salaire_par_seniorite(region=region)
-        st.plotly_chart(chart_salaires(df_sal), use_container_width=True, key="salaires")
+        st.plotly_chart(chart_salaires(df_sal), width="stretch", key="salaires")
 
     with col_evo:
         df_evo = get_evolution_temporelle(region=region, seniorite=seniorite)
-        st.plotly_chart(chart_evolution(df_evo), use_container_width=True, key="evolution")
+        st.plotly_chart(chart_evolution(df_evo), width="stretch", key="evolution")
 
     with st.expander("Tableau détaillé des compétences"):
         if not df_top.empty:
@@ -145,7 +145,7 @@ with tab2:
         "progressent par rapport aux compétences classiques (SQL, Python, Java…)."
     )
     df_ia = get_ia_vs_classiques(region=region, seniorite=seniorite)
-    st.plotly_chart(chart_ia_vs_classiques(df_ia), use_container_width=True, key="ia_classiques")
+    st.plotly_chart(chart_ia_vs_classiques(df_ia), width="stretch", key="ia_classiques")
 
     if not df_ia.empty:
         with st.expander("Données brutes"):
@@ -163,7 +163,7 @@ with tab3:
         "l'IA dans les missions ? Les profils senior sont-ils plus exposés ?"
     )
     df_corr = get_correlation_seniorite_ia(region=region)
-    st.plotly_chart(chart_correlation_seniorite_ia(df_corr), use_container_width=True, key="corr_seniorite")
+    st.plotly_chart(chart_correlation_seniorite_ia(df_corr), width="stretch", key="corr_seniorite")
 
     if not df_corr.empty:
         st.dataframe(
@@ -189,7 +189,7 @@ with tab4:
         "selon la localisation. La taille des bulles représente le nombre d'offres."
     )
     df_geo = get_disparites_geo()
-    st.plotly_chart(chart_disparites_geo(df_geo), use_container_width=True, key="geo")
+    st.plotly_chart(chart_disparites_geo(df_geo), width="stretch", key="geo")
 
     if not df_geo.empty:
         st.dataframe(
