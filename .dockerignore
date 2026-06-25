@@ -1,0 +1,19 @@
+# Garder l'image legere et ne pas y embarquer de secrets ni de gros volumes.
+.git
+.gitignore
+.gitlab-ci.yml
+
+# Secrets : injectes au runtime via env_file, jamais dans l'image.
+.env
+.env.example
+
+# Le lac de donnees brutes (regenere par le pipeline, lu depuis la DB par le dashboard).
+data/
+
+# Artefacts Python / docs / cache.
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+docs/

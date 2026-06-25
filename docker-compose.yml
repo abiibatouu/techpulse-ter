@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -35,6 +33,24 @@ services:
       - techpulse_network
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+
+  dashboard:
+    build: .
+    container_name: techpulse_dashboard
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Dans le reseau Docker, la base est joignable au nom du service,
+      # pas sur localhost. On surcharge donc DB_HOST/DB_PORT du .env.
+      DB_HOST: postgres
+      DB_PORT: 5432
+    ports:
+      - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - techpulse_network
 
 volumes:
   postgres_data:
