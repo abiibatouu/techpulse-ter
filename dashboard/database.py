@@ -241,8 +241,8 @@ def get_salaire_par_competence(
         SELECT
             cn.competence_canonique,
             cn.categorie,
-            ROUND(AVG(ol.salaire_min)) AS salaire_min_moyen,
-            ROUND(AVG(ol.salaire_max)) AS salaire_max_moyen,
+            ROUND(AVG(ol.salaire_min::numeric)) AS salaire_min_moyen,
+            ROUND(AVG(ol.salaire_max::numeric)) AS salaire_max_moyen,
             COUNT(DISTINCT cn.offre_id) AS nb_offres
         FROM competences_normalisees cn
         JOIN offres o  ON o.id = cn.offre_id
@@ -279,8 +279,8 @@ def get_salaire_par_seniorite(
     sql = f"""
         SELECT
             ol.seniorite,
-            ROUND(AVG(ol.salaire_min)) AS salaire_min_moyen,
-            ROUND(AVG(ol.salaire_max)) AS salaire_max_moyen,
+            ROUND(AVG(ol.salaire_min::numeric)) AS salaire_min_moyen,
+            ROUND(AVG(ol.salaire_max::numeric)) AS salaire_max_moyen,
             COUNT(*) AS nb_offres
         FROM offres_llm ol
         JOIN offres o ON o.id = ol.offre_id
@@ -394,18 +394,18 @@ def get_disparites_geo(metier: str | None = None) -> pd.DataFrame:
         SELECT
             CASE
                 WHEN o.lieu_libelle ILIKE '%%Paris%%' THEN 'Paris'
-                WHEN ol.jours_teletravail >= 5 THEN 'Full remote'
+                WHEN ol.jours_teletravail::text ~ '^[0-9]+$' AND ol.jours_teletravail::numeric >= 5 THEN 'Full remote'
                 ELSE 'Villes secondaires'
             END                                                             AS zone,
             COUNT(DISTINCT o.id)                                            AS nb_offres,
             ROUND(AVG(
                 CASE WHEN ol.salaire_min IS NOT NULL AND ol.salaire_max IS NOT NULL
-                     THEN (ol.salaire_min + ol.salaire_max) / 2.0
+                     THEN (ol.salaire_min::numeric + ol.salaire_max::numeric) / 2.0
                      ELSE NULL END
             ))                                                              AS salaire_median,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                    AS pct_ia,
-            ROUND(AVG(ol.jours_teletravail), 1)                                     AS teletravail_moyen
+            ROUND(AVG(CASE WHEN ol.jours_teletravail::text ~ '^[0-9]+$' THEN ol.jours_teletravail::numeric END), 1) AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         GROUP BY zone
@@ -432,7 +432,7 @@ def get_kpis(
             COUNT(DISTINCT cn.competence_canonique)                     AS nb_competences,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                AS pct_ia,
-            ROUND(AVG(ol.jours_teletravail), 1)                                     AS teletravail_moyen
+            ROUND(AVG(CASE WHEN ol.jours_teletravail::text ~ '^[0-9]+$' THEN ol.jours_teletravail::numeric END), 1) AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         LEFT JOIN competences_normalisees cn ON cn.offre_id = o.id
