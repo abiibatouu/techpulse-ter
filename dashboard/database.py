@@ -214,6 +214,52 @@ def get_repartition_categories(
     return _query(sql, params)
 
 
+def get_salaire_par_competence(
+    region: str | None = None,
+    metier: str | None = None,
+    top_n: int = 12,
+) -> pd.DataFrame:
+    """Salaire moyen min/max pour les compétences les mieux rémunérées.
+
+    Répond à : 'Quelles compétences sont associées aux meilleurs salaires ?'
+    Colonnes : competence_canonique, categorie, salaire_min_moyen, salaire_max_moyen, nb_offres.
+    """
+    conditions = ["ol.salaire_min IS NOT NULL", "ol.salaire_max IS NOT NULL"]
+    params: dict = {}
+
+    if region:
+        conditions.append("o.lieu_libelle = %(region)s")
+        params["region"] = region
+    if metier:
+        conditions.append("o.code_rome = %(metier)s")
+        params["metier"] = metier
+
+    where = "WHERE " + " AND ".join(conditions)
+    params["top_n"] = top_n
+
+    sql = f"""
+        SELECT
+            cn.competence_canonique,
+            cn.categorie,
+            ROUND(AVG(ol.salaire_min)) AS salaire_min_moyen,
+            ROUND(AVG(ol.salaire_max)) AS salaire_max_moyen,
+            COUNT(DISTINCT cn.offre_id) AS nb_offres
+        FROM competences_normalisees cn
+        JOIN offres o  ON o.id = cn.offre_id
+        JOIN offres_llm ol ON ol.offre_id = cn.offre_id
+        {where}
+        GROUP BY cn.competence_canonique, cn.categorie
+        HAVING COUNT(DISTINCT cn.offre_id) >= 3
+        ORDER BY salaire_max_moyen DESC
+        LIMIT %(top_n)s
+    """
+    df = _query(sql, params)
+    for col in ["salaire_min_moyen", "salaire_max_moyen"]:
+        if col in df.columns:
+            df[col] = df[col].astype(float)
+    return df
+
+
 def get_salaire_par_seniorite(
     region: str | None = None,
 ) -> pd.DataFrame:
@@ -271,13 +317,14 @@ def get_evolution_temporelle(
 def get_ia_vs_classiques(
     region: str | None = None,
     seniorite: str | None = None,
+    metier: str | None = None,
 ) -> pd.DataFrame:
     """Évolution mensuelle : nombre d'offres avec compétences IA vs classiques.
 
     Répond à : "Est-ce que les compétences IA prennent de la place sur les classiques ?"
     Colonnes : mois, categorie, nb_offres.
     """
-    where, params = _build_where(region, seniorite)
+    where, params = _build_where(region, seniorite, metier)
     connector = "AND" if where else "WHERE"
 
     sql = f"""
@@ -298,6 +345,7 @@ def get_ia_vs_classiques(
 
 def get_correlation_seniorite_ia(
     region: str | None = None,
+    metier: str | None = None,
 ) -> pd.DataFrame:
     """Corrélation séniorité × présence de l'IA dans les offres.
 
@@ -310,6 +358,9 @@ def get_correlation_seniorite_ia(
     if region:
         conditions.append("o.lieu_libelle = %(region)s")
         params["region"] = region
+    if metier:
+        conditions.append("o.code_rome = %(metier)s")
+        params["metier"] = metier
 
     where = "WHERE " + " AND ".join(conditions)
 
@@ -329,7 +380,7 @@ def get_correlation_seniorite_ia(
     return _query(sql, params)
 
 
-def get_disparites_geo() -> pd.DataFrame:
+def get_disparites_geo(metier: str | None = None) -> pd.DataFrame:
     """Disparités Paris / villes secondaires / full remote.
 
     Répond à : "Est-ce que Paris domine toujours le marché tech ?"
@@ -343,7 +394,7 @@ def get_disparites_geo() -> pd.DataFrame:
         SELECT
             CASE
                 WHEN o.lieu_libelle ILIKE '%%Paris%%' THEN 'Paris'
-                WHEN ol.jours_teletravail >= 5 THEN 'Full remote'
+                WHEN ol.jours_teletravail ~ '^[0-9]+$' AND ol.jours_teletravail::numeric >= 5 THEN 'Full remote'
                 ELSE 'Villes secondaires'
             END                                                             AS zone,
             COUNT(DISTINCT o.id)                                            AS nb_offres,
@@ -354,7 +405,7 @@ def get_disparites_geo() -> pd.DataFrame:
             ))                                                              AS salaire_median,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                    AS pct_ia,
-            ROUND(AVG(ol.jours_teletravail))                                AS teletravail_moyen
+            ROUND(AVG(CASE WHEN ol.jours_teletravail ~ '^[0-9]+$' THEN ol.jours_teletravail::numeric END)) AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         GROUP BY zone
@@ -381,7 +432,7 @@ def get_kpis(
             COUNT(DISTINCT cn.competence_canonique)                     AS nb_competences,
             ROUND(100.0 * SUM(CASE WHEN ol.mention_ia THEN 1 ELSE 0 END)
                   / NULLIF(COUNT(*), 0))                                AS pct_ia,
-            ROUND(AVG(ol.jours_teletravail))                            AS teletravail_moyen
+            ROUND(AVG(CASE WHEN ol.jours_teletravail ~ '^[0-9]+$' THEN ol.jours_teletravail::numeric END)) AS teletravail_moyen
         FROM offres o
         JOIN offres_llm ol ON ol.offre_id = o.id
         LEFT JOIN competences_normalisees cn ON cn.offre_id = o.id

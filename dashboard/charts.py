@@ -7,13 +7,24 @@ Toutes les figures partagent le même thème défini dans style.py.
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import streamlit as st
 
-from style import COULEURS, LABELS_CATEGORIES, COULEURS_ZONES, PLOTLY_LAYOUT
+from style import COULEURS, LABELS_CATEGORIES, COULEURS_ZONES, get_plotly_layout
 
 
 def _apply_theme(fig: go.Figure, height: int = 400) -> go.Figure:
-    """Applique le thème commun à toutes les figures."""
-    fig.update_layout(height=height, **PLOTLY_LAYOUT)
+    dark = st.session_state.get("dark_mode", False)
+    base = get_plotly_layout(dark)
+    layout = {k: v for k, v in base.items() if k != "title"}
+    fig.update_layout(height=height, **layout)
+    t = base.get("title", {})
+    if t:
+        fig.update_layout(
+            title_font=t.get("font", {}),
+            title_x=t.get("x", 0),
+            title_xanchor=t.get("xanchor", "left"),
+            title_pad=t.get("pad", {}),
+        )
     return fig
 
 
@@ -31,25 +42,27 @@ def chart_top_competences(df: pd.DataFrame) -> go.Figure:
         return _vide("Aucune compétence trouvée avec ces filtres.")
 
     df = df.copy().sort_values("nb_offres", ascending=True)
-    df["label_cat"] = df["categorie"].map(_label)
+    # Remplacer les clés techniques (soft_skill, ia_llm…) par des libellés lisibles
+    df["categorie_label"] = df["categorie"].map(_label)
+    couleurs_labels = {_label(k): v for k, v in COULEURS.items()}
 
     fig = px.bar(
         df,
         x="nb_offres",
         y="competence_canonique",
-        color="categorie",
-        color_discrete_map=COULEURS,
+        color="categorie_label",
+        color_discrete_map=couleurs_labels,
         orientation="h",
         text="nb_offres",
         labels={
-            "nb_offres": "Offres",
+            "nb_offres":          "Offres",
             "competence_canonique": "",
-            "categorie": "Catégorie",
+            "categorie_label":    "Catégorie",
         },
     )
     fig.update_traces(
         textposition="outside",
-        textfont=dict(size=11, color="#6B7280"),
+        textfont=dict(size=11, color="#A1A1AA"),
         marker_line_width=0,
     )
     fig.update_layout(
@@ -62,8 +75,6 @@ def chart_top_competences(df: pd.DataFrame) -> go.Figure:
             xanchor="right", x=1,
         ),
         xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        # Force le tri par valeur (sinon le coloriage par categorie regroupe
-        # les barres par couleur au lieu de les classer par nombre d'offres).
         yaxis=dict(showgrid=False, categoryorder="total ascending"),
         bargap=0.35,
     )
@@ -97,7 +108,7 @@ def chart_repartition_categories(df: pd.DataFrame) -> go.Figure:
         text=f"<b>{len(df)}</b><br><span style='font-size:10px;color:#9CA3AF'>catégories</span>",
         x=0.5, y=0.5,
         showarrow=False,
-        font=dict(size=16, color="#111827"),
+        font=dict(size=16, color="#18181B"),
         align="center",
     )
     fig.update_layout(
@@ -127,21 +138,21 @@ def chart_salaires(df: pd.DataFrame) -> go.Figure:
         name="Min moyen",
         x=df["seniorite"],
         y=df["salaire_min_moyen"],
-        marker_color="#BFDBFE",
+        marker_color="rgba(91,127,239,0.28)",
         marker_line_width=0,
         text=df["salaire_min_moyen"].apply(lambda v: f"{int(v):,} €"),
         textposition="outside",
-        textfont=dict(size=11, color="#6B7280"),
+        textfont=dict(size=11, color="#A1A1AA"),
     ))
     fig.add_trace(go.Bar(
         name="Max moyen",
         x=df["seniorite"],
         y=df["salaire_max_moyen"],
-        marker_color="#2563EB",
+        marker_color="#5B7FEF",
         marker_line_width=0,
         text=df["salaire_max_moyen"].apply(lambda v: f"{int(v):,} €"),
         textposition="outside",
-        textfont=dict(size=11, color="#6B7280"),
+        textfont=dict(size=11, color="#A1A1AA"),
     ))
     fig.update_layout(
         title="Fourchette salariale par séniorité (€/an)",
@@ -153,6 +164,46 @@ def chart_salaires(df: pd.DataFrame) -> go.Figure:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return _apply_theme(fig, height=350)
+
+
+def chart_salaire_par_competence(df: pd.DataFrame) -> go.Figure:
+    """Barres horizontales : top compétences par salaire max moyen."""
+    if df.empty:
+        return _vide("Pas assez de données salariales par compétence.")
+
+    df = df.copy().sort_values("salaire_max_moyen", ascending=True)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Min moyen",
+        x=df["salaire_min_moyen"],
+        y=df["competence_canonique"],
+        orientation="h",
+        marker_color="rgba(91,127,239,0.28)",
+        marker_line_width=0,
+        hovertemplate="<b>%{y}</b><br>Min : %{x:,.0f} €<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name="Max moyen",
+        x=df["salaire_max_moyen"],
+        y=df["competence_canonique"],
+        orientation="h",
+        marker_color="#5B7FEF",
+        marker_line_width=0,
+        text=df["salaire_max_moyen"].apply(lambda v: f"{int(v):,} €"),
+        textposition="outside",
+        textfont=dict(size=10, color="#A1A1AA"),
+        hovertemplate="<b>%{y}</b><br>Max : %{x:,.0f} €<extra></extra>",
+    ))
+    fig.update_layout(
+        title="Compétences les mieux rémunérées (salaire max moyen, €/an)",
+        barmode="overlay",
+        bargap=0.3,
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(showgrid=False),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return _apply_theme(fig, height=max(360, len(df) * 32))
 
 
 def chart_evolution(df: pd.DataFrame) -> go.Figure:
@@ -169,8 +220,8 @@ def chart_evolution(df: pd.DataFrame) -> go.Figure:
         y=df["nb_offres"],
         mode="lines",
         fill="tozeroy",
-        line=dict(color="#2563EB", width=2),
-        fillcolor="rgba(37,99,235,0.08)",
+        line=dict(color="#5B7FEF", width=2.5),
+        fillcolor="rgba(91,127,239,0.07)",
         hovertemplate="<b>%{x|%d %b %Y}</b><br>%{y} offres<extra></extra>",
     ))
     fig.update_layout(
@@ -232,7 +283,7 @@ def chart_correlation_seniorite_ia(df: pd.DataFrame) -> go.Figure:
     # Dégradé de couleur selon le %
     max_pct = float(df["pct_ia"].max()) or 1.0
     colors = [
-        f"rgba(245,158,11,{0.3 + 0.7 * (float(v) / max_pct):.2f})"
+        f"rgba(91,127,239,{0.18 + 0.82 * (float(v) / max_pct):.2f})"
         for v in df["pct_ia"]
     ]
 
@@ -243,7 +294,7 @@ def chart_correlation_seniorite_ia(df: pd.DataFrame) -> go.Figure:
         marker=dict(color=colors, line=dict(width=0)),
         text=df["pct_ia"].apply(lambda v: f"{int(v)} %"),
         textposition="outside",
-        textfont=dict(size=12, color="#374151"),
+        textfont=dict(size=12, color="#A1A1AA"),
         customdata=df[["total_offres", "offres_ia"]].values,
         hovertemplate=(
             "<b>%{y}</b><br>"
@@ -287,7 +338,7 @@ def chart_disparites_geo(df: pd.DataFrame) -> go.Figure:
             name=zone,
             text=[zone],
             textposition="top center",
-            textfont=dict(size=12, color="#374151"),
+            textfont=dict(size=12, color="#A1A1AA"),
             marker=dict(
                 size=max(20, min(80, row["nb_offres"] / 15)),
                 color=color,
@@ -329,6 +380,8 @@ def table_disparites_geo(df: pd.DataFrame) -> pd.DataFrame:
 
 def _vide(message: str) -> go.Figure:
     """Figure vide avec message centré."""
+    dark = st.session_state.get("dark_mode", False)
+    base = get_plotly_layout(dark)
     fig = go.Figure()
     fig.add_annotation(
         text=message, xref="paper", yref="paper",
@@ -339,6 +392,6 @@ def _vide(message: str) -> go.Figure:
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
         height=280,
-        **{k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis", "yaxis")},
+        **{k: v for k, v in base.items() if k not in ("xaxis", "yaxis")},
     )
     return fig
